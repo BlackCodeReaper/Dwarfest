@@ -25,7 +25,7 @@ const emit = defineEmits<{
       <button class="button" @click="emit('advance')" :disabled="disabled">Save checkpoint and continue</button>
       <button class="button button--secondary" @click="emit('restoreLast')" :disabled="disabled || !hasLastSnapshot">Undo to latest checkpoint</button>
       <button class="button button--secondary" @click="emit('exportGame')">Export game JSON</button>
-      <button class="button button--ghost" @click="emit('resetSession')" :disabled="disabled">Reset to setup</button>
+      <button class="button button--ghost" @click="emit('resetSession')" :disabled="disabled">Exit game</button>
     </div>
   </article>
 </template>

@@ -33,6 +33,7 @@ const {
   quickStartFromTemplate,
   exportGame,
   resetSession,
+  leaveMultiplayerGame,
   retryParticipantSync,
 } = useGameState()
 
@@ -127,6 +128,13 @@ const canRetryParticipantSync = computed(() => {
   }
 
   return syncStatus.value.state === 'error' || syncStatus.value.state === 'offline'
+})
+const exitGameLabel = computed(() => {
+  if (session.value.config.mode === 'multiplayer') {
+    return activeMultiplayerRole.value === 'participant' ? 'Leave room' : 'Exit room'
+  }
+
+  return 'Exit game'
 })
 
 function labelForPhase(phase: string) {
@@ -243,6 +251,28 @@ function restoreLastCheckpoint() {
 
 function confirmResetSession() {
   if (!window.confirm('Start a new game? The current session will be lost unless you export it first.')) {
+    return
+  }
+
+  resetSession()
+}
+
+function confirmExitGame() {
+  if (session.value.config.mode === 'multiplayer') {
+    const message =
+      activeMultiplayerRole.value === 'participant'
+        ? 'Leave this multiplayer room and return to setup?'
+        : 'Exit this multiplayer room for everyone on this device and return to setup?'
+
+    if (!window.confirm(message)) {
+      return
+    }
+
+    leaveMultiplayerGame()
+    return
+  }
+
+  if (!window.confirm('Exit this game and return to setup? Unsaved progress will be lost unless exported.')) {
     return
   }
 
@@ -446,6 +476,7 @@ watch(
           <button v-if="canRetryParticipantSync" class="button button--ghost" type="button" :disabled="isRetryingSync" @click="retrySyncFromStatus">
             {{ isRetryingSync ? 'Retrying...' : 'Retry sync' }}
           </button>
+          <button class="button button--ghost" type="button" @click="confirmExitGame">{{ exitGameLabel }}</button>
         </article>
         <article>
           <p class="eyebrow">Round</p>

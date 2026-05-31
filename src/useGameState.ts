@@ -524,7 +524,31 @@ function exportGame() {
   showToast('Game log exported.')
 }
 
+function leaveMultiplayerGame() {
+  if (session.value.config.mode !== 'multiplayer') {
+    return
+  }
+
+  if (realtimeSync) {
+    const current = realtimeSync
+    realtimeSync = null
+    void current.stop()
+  }
+
+  pendingSyncQueue.length = 0
+  pendingSyncCount.value = 0
+  syncStatus.value = { state: 'idle', detail: '' }
+  multiplayerRole.value = 'host'
+  session.value = createSetupSession()
+  showToast('Left multiplayer room.')
+}
+
 function resetSession() {
+  if (session.value.config.mode === 'multiplayer' && multiplayerRole.value === 'participant') {
+    leaveMultiplayerGame()
+    return
+  }
+
   if (!canMutateGameplay()) {
     return
   }
@@ -573,6 +597,7 @@ export function useGameState() {
     quickStartFromTemplate,
     exportGame,
     resetSession,
+    leaveMultiplayerGame,
     retryParticipantSync,
   }
 }
