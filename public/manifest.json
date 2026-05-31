@@ -1,0 +1,17 @@
+{
+  "name": "Dwarfest Companion",
+  "short_name": "Dwarfest",
+  "description": "Track Dwarfest rounds, phases, and player stats from one phone or multiplayer sessions.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#120b08",
+  "theme_color": "#2b1811",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
