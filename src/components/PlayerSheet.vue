@@ -1,11 +1,18 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { type PlayerState } from '../types'
 
-defineProps<{
+const props = defineProps<{
   player: PlayerState
   totalNuggets: number
+  brawlThreshold?: number
   readOnly?: boolean
 }>()
+
+const brawlAtLimit = computed(() => {
+  const threshold = props.brawlThreshold ?? 6
+  return props.player.brawl >= threshold
+})
 </script>
 
 <template>
@@ -38,8 +45,8 @@ defineProps<{
         <input v-model.number="player.fame" type="number" min="0" :disabled="readOnly" />
       </label>
       <label>
-        <span>Brawl</span>
-        <input v-model.number="player.brawl" type="number" min="0" :disabled="readOnly" />
+        <span :class="{ 'brawl-alert': brawlAtLimit }">Brawl{{ brawlAtLimit ? ' ⚠ trigger!' : '' }}</span>
+        <input v-model.number="player.brawl" type="number" min="0" :disabled="readOnly" :class="{ 'input--alert': brawlAtLimit }" />
       </label>
       <label>
         <span>Tables</span>

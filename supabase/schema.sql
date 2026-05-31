@@ -26,6 +26,11 @@ alter table public.games enable row level security;
 alter table public.participants enable row level security;
 alter table public.game_actions enable row level security;
 
+-- Required for postgres_changes filtered subscriptions to work correctly
+alter table public.games replica identity full;
+alter table public.participants replica identity full;
+alter table public.game_actions replica identity full;
+
 drop policy if exists "allow anon read games" on public.games;
 create policy "allow anon read games"
   on public.games
@@ -34,9 +39,15 @@ create policy "allow anon read games"
   using (true);
 
 drop policy if exists "allow anon upsert games" on public.games;
-create policy "allow anon upsert games"
+create policy "allow anon insert games"
   on public.games
-  for all
+  for insert
+  to anon
+  with check (true);
+
+create policy "allow anon update games"
+  on public.games
+  for update
   to anon
   using (true)
   with check (true);
@@ -49,9 +60,15 @@ create policy "allow anon read participants"
   using (true);
 
 drop policy if exists "allow anon write participants" on public.participants;
-create policy "allow anon write participants"
+create policy "allow anon insert participants"
   on public.participants
-  for all
+  for insert
+  to anon
+  with check (true);
+
+create policy "allow anon update participants"
+  on public.participants
+  for update
   to anon
   using (true)
   with check (true);
@@ -64,9 +81,8 @@ create policy "allow anon read actions"
   using (true);
 
 drop policy if exists "allow anon write actions" on public.game_actions;
-create policy "allow anon write actions"
+create policy "allow anon insert actions"
   on public.game_actions
-  for all
+  for insert
   to anon
-  using (true)
   with check (true);

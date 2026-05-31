@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import BeerThrowPanel from './components/BeerThrowPanel.vue'
 import CheckpointPanel from './components/CheckpointPanel.vue'
+import GameFinishedScreen from './components/GameFinishedScreen.vue'
 import HistoryPanel from './components/HistoryPanel.vue'
 import PlayerSheet from './components/PlayerSheet.vue'
 import ScoreboardPanel from './components/ScoreboardPanel.vue'
@@ -15,11 +16,13 @@ import {
   type GameMode,
 } from './types'
 import { createDefaultConfig, totalNuggetValue, useGameState } from './useGameState'
+import { isSupabaseConfigured } from './services/supabase'
 
 const {
   session,
   template,
   loadWarnings,
+  toast,
   syncStatus,
   multiplayerRole: activeMultiplayerRole,
   pendingSyncCount,
@@ -30,6 +33,7 @@ const {
   quickStartFromTemplate,
   exportGame,
   resetSession,
+  retryParticipantSync,
 } = useGameState()
 
 const setupConfig = reactive(createDefaultConfig())
@@ -40,6 +44,17 @@ const roomCodeDraft = ref('')
 const miniGameMeter = ref(0)
 const miniGameActive = ref(false)
 const miniGameResult = ref('')
+const isRetryingSync = ref(false)
+const installPromptEvent = ref<Event | null>(null)
+const supabaseConfigured = isSupabaseConfigured()
+
+const syncStatusClass = computed(() => {
+  const s = syncStatus.value.state
+  if (s === 'connected' || s === 'syncing') return 'sync--ok'
+  if (s === 'offline') return 'sync--warn'
+  if (s === 'error') return 'sync--error'
+  return ''
+})
 
 let miniGameDirection = 1
 let miniGameTimer: number | undefined
@@ -60,6 +75,7 @@ watch(
 
 const currentPlayer = computed(() => session.value.players[session.value.currentPlayerIndex] ?? null)
 const phaseIndex = computed(() => phases.indexOf(session.value.currentPhase))
+const brawlThreshold = computed(() => session.value.config.epicVariant ? 5 : 6)
 const lastSnapshot = computed(() => session.value.history.at(-1) ?? null)
 const scoreBoard = computed(() => {
   return [...session.value.players].sort((left, right) => totalNuggetValue(right) - totalNuggetValue(left))
@@ -104,6 +120,13 @@ const multiplayerStatusLine = computed(() => {
 })
 const isParticipantView = computed(() => {
   return session.value.config.mode === 'multiplayer' && activeMultiplayerRole.value === 'participant'
+})
+const canRetryParticipantSync = computed(() => {
+  if (!isParticipantView.value) {
+    return false
+  }
+
+  return syncStatus.value.state === 'error' || syncStatus.value.state === 'offline'
 })
 
 function labelForPhase(phase: string) {
@@ -211,7 +234,19 @@ function restoreLastCheckpoint() {
     return
   }
 
+  if (!window.confirm('Restore to the last checkpoint? Current unsaved changes will be lost.')) {
+    return
+  }
+
   restoreSnapshot(lastSnapshot.value.id)
+}
+
+function confirmResetSession() {
+  if (!window.confirm('Start a new game? The current session will be lost unless you export it first.')) {
+    return
+  }
+
+  resetSession()
 }
 
 function startMiniGame() {
@@ -292,6 +327,39 @@ function recordPhysicalThrow(success: boolean) {
   }
 }
 
+async function promptInstall() {
+  const prompt = installPromptEvent.value as (Event & { prompt: () => Promise<void> }) | null
+
+  if (!prompt) {
+    return
+  }
+
+  installPromptEvent.value = null
+  await prompt.prompt()
+}
+
+
+async function retrySyncFromStatus() {
+  if (isRetryingSync.value) {
+    return
+  }
+
+  isRetryingSync.value = true
+
+  try {
+    await retryParticipantSync()
+  } finally {
+    isRetryingSync.value = false
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault()
+    installPromptEvent.value = e
+  })
+})
+
 onBeforeUnmount(() => {
   stopMiniGame()
 })
@@ -325,23 +393,32 @@ watch(
       <div>
         <p class="eyebrow">Dwarfest Companion</p>
         <h1>Track the tavern, not the arithmetic.</h1>
-        <p class="lede">
-          This first implementation covers setup, local saves, turn flow, checkpoints, export, and the beer-throw toggle.
-        </p>
+        <p class="lede">Track rounds, phases, player stats, beer throws, and checkpoints — fully offline or with live multiplayer sync.</p>
       </div>
 
       <div class="masthead__badges">
-        <span class="badge">Safari-ready</span>
-        <span class="badge">Installable next</span>
-        <span class="badge badge--accent">{{ session.config.mode === 'multiplayer' ? 'Multiplayer groundwork' : 'Pass-around ready' }}</span>
+        <span class="badge">Works offline</span>
+        <button v-if="installPromptEvent" class="badge badge--install" type="button" @click="promptInstall">Add to home screen</button>
+        <span class="badge badge--accent">{{ session.config.mode === 'multiplayer' ? 'Multiplayer' : 'Pass-around' }}</span>
       </div>
 
       <div v-if="loadWarnings.length" class="warning-list">
         <p v-for="(warning, index) in loadWarnings" :key="index" class="hint hint--error">{{ warning }}</p>
       </div>
+
+      <div v-if="session.config.mode === 'multiplayer' && !supabaseConfigured" class="warning-list">
+        <p class="hint hint--error">Multiplayer requires Supabase credentials. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment (Vercel project settings or local .env), then redeploy.</p>
+      </div>
     </header>
 
-    <main v-if="session.status === 'setup'" class="layout layout--setup">
+    <GameFinishedScreen
+      v-if="session.status === 'finished'"
+      :session="session"
+      @export="exportGame"
+      @new-game="resetSession"
+    />
+
+    <main v-else-if="session.status === 'setup'" class="layout layout--setup">
       <SetupScreen
         :setup-config="setupConfig"
         :setup-names="setupNames"
@@ -359,13 +436,16 @@ watch(
       />
     </main>
 
-    <main v-else class="layout layout--play">
+    <main v-else-if="session.status === 'active'" class="layout layout--play">
       <section class="panel status-grid">
         <article>
           <p class="eyebrow">Mode</p>
           <strong>{{ session.config.mode === 'multiplayer' ? 'Multiplayer prototype' : 'Pass-around' }}</strong>
           <p class="hint" v-if="session.config.mode === 'multiplayer'">Room {{ session.roomCode }}</p>
-          <p class="hint" v-if="multiplayerStatusLine">{{ multiplayerStatusLine }}</p>
+          <p class="hint" :class="syncStatusClass" v-if="multiplayerStatusLine">{{ multiplayerStatusLine }}</p>
+          <button v-if="canRetryParticipantSync" class="button button--ghost" type="button" :disabled="isRetryingSync" @click="retrySyncFromStatus">
+            {{ isRetryingSync ? 'Retrying...' : 'Retry sync' }}
+          </button>
         </article>
         <article>
           <p class="eyebrow">Round</p>
@@ -381,20 +461,22 @@ watch(
         </article>
       </section>
 
-      <section class="phase-strip panel">
-        <button
-          v-for="phase in phases"
+      <section class="phase-strip panel" aria-label="Phase progress">
+        <span
+          v-for="(phase, index) in phases"
           :key="phase"
           class="phase-pill"
-          :class="{ 'phase-pill--active': phase === session.currentPhase }"
-          type="button"
+          :class="{
+            'phase-pill--active': phase === session.currentPhase,
+            'phase-pill--done': index < phaseIndex,
+          }"
         >
           {{ labelForPhase(phase) }}
-        </button>
+        </span>
       </section>
 
       <section class="play-grid" v-if="currentPlayer">
-        <PlayerSheet :player="currentPlayer" :total-nuggets="totalNuggetValue(currentPlayer)" :read-only="isParticipantView" />
+        <PlayerSheet :player="currentPlayer" :total-nuggets="totalNuggetValue(currentPlayer)" :brawl-threshold="brawlThreshold" :read-only="isParticipantView" />
 
         <aside class="stack">
           <BeerThrowPanel
@@ -417,7 +499,7 @@ watch(
             @advance="advanceStep"
             @restore-last="restoreLastCheckpoint"
             @export-game="exportGame"
-            @reset-session="resetSession"
+            @reset-session="confirmResetSession"
           />
         </aside>
       </section>
@@ -428,4 +510,8 @@ watch(
       </section>
     </main>
   </div>
+
+  <Transition name="toast">
+    <div v-if="toast" class="toast" role="status" aria-live="polite">{{ toast }}</div>
+  </Transition>
 </template>

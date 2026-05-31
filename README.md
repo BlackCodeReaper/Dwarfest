@@ -18,6 +18,9 @@ Implemented:
 - Host and participant role logic (participant is read-only)
 - Reconnect queue for host updates while offline
 - Participant presence and action audit writes (Supabase tables)
+- Participant retry sync action when initial room hydrate fails
+- Versioned service worker caches (static/runtime split)
+- Checked-in `.env.example` template for required Supabase vars
 
 Planned next:
 - Conflict resolution hardening (currently snapshot-based)
@@ -76,6 +79,20 @@ npm run build
 - `supabase/schema.sql`: tables and policies for games, participants, and action audit
 - `.env.example`: required frontend env vars
 
+## Vercel Deployment
+
+1. Push the repo to GitHub.
+2. Import the project in [vercel.com](https://vercel.com) — it auto-detects Vite.
+3. **Add environment variables in Vercel project settings → Environment Variables:**
+   ```
+   VITE_SUPABASE_URL       = https://your-project-ref.supabase.co
+   VITE_SUPABASE_ANON_KEY  = your-anon-key
+   ```
+   These are baked into the build at compile time by Vite. The deployment **must be re-triggered** after adding or changing them.
+4. Deploy. The included `vercel.json` handles SPA routing, static asset caching, and security headers automatically.
+
+> Without the env vars set in Vercel, multiplayer mode will be visible in the UI but will run in offline/unconfigured fallback mode — no Supabase connection will be attempted.
+
 ## Multiplayer Setup (Supabase)
 
 1. Create a Supabase project.
@@ -90,6 +107,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 4. Restart dev server after adding env vars.
 
 Without these env vars, multiplayer mode stays available in UI but runs in unconfigured fallback mode.
+Placeholder/example values are treated as unconfigured to avoid false-positive setup states.
 
 ## Notes
 

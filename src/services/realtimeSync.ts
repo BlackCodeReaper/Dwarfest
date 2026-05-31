@@ -98,12 +98,16 @@ export function createRealtimeSync(options: RealtimeSyncOptions): RealtimeSyncHa
         event: 'INSERT',
         schema: 'public',
         table: 'games',
-        filter: `room_code=eq.${options.roomCode}`,
       },
       (payload) => {
-        const incoming = payload.new as { state_json?: GameSession; source_client?: string } | undefined
+        const incoming = payload.new as { room_code?: string; state_json?: GameSession; source_client?: string } | undefined
 
-        if (!incoming || incoming.source_client === clientId || !incoming.state_json) {
+        if (
+          !incoming ||
+          incoming.room_code !== options.roomCode ||
+          incoming.source_client === clientId ||
+          !incoming.state_json
+        ) {
           return
         }
 
@@ -116,12 +120,16 @@ export function createRealtimeSync(options: RealtimeSyncOptions): RealtimeSyncHa
         event: 'UPDATE',
         schema: 'public',
         table: 'games',
-        filter: `room_code=eq.${options.roomCode}`,
       },
       (payload) => {
-        const incoming = payload.new as { state_json?: GameSession; source_client?: string } | undefined
+        const incoming = payload.new as { room_code?: string; state_json?: GameSession; source_client?: string } | undefined
 
-        if (!incoming || incoming.source_client === clientId || !incoming.state_json) {
+        if (
+          !incoming ||
+          incoming.room_code !== options.roomCode ||
+          incoming.source_client === clientId ||
+          !incoming.state_json
+        ) {
           return
         }
 

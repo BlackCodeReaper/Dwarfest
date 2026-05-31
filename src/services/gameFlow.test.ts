@@ -73,4 +73,40 @@ describe('advanceTurnPointer', () => {
       isGameFinished: true,
     })
   })
+
+  it('handles single-player edge case without infinite loop risk', () => {
+    const result = advanceTurnPointer({
+      currentRound: 1,
+      currentPhase: 'supplies',
+      currentPlayerIndex: 0,
+      rounds: 3,
+      playerCount: 1,
+    })
+
+    expect(result).toEqual({
+      currentRound: 1,
+      currentPhase: 'opening',
+      currentPlayerIndex: 0,
+      shouldResetRoundStats: false,
+      isGameFinished: false,
+    })
+  })
+
+  it('wraps from final phase to next round for mid-game round', () => {
+    const result = advanceTurnPointer({
+      currentRound: 2,
+      currentPhase: 'collection',
+      currentPlayerIndex: 1,
+      rounds: 5,
+      playerCount: 2,
+    })
+
+    expect(result).toEqual({
+      currentRound: 3,
+      currentPhase: 'supplies',
+      currentPlayerIndex: 0,
+      shouldResetRoundStats: true,
+      isGameFinished: false,
+    })
+  })
 })

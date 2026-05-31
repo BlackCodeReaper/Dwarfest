@@ -1,14 +1,21 @@
 import { ref, watch } from 'vue'
 import { phases, type GameConfig, type GameMode, type GameSession, type MultiplayerRole, type MultiplayerSyncState, type PlayerState, type SavedTemplate, type SessionData, type SessionSnapshot } from './types'
 import { advanceTurnPointer } from './services/gameFlow'
+import { totalNuggetValue } from './services/gameUtils'
 import { createRealtimeSync, type RealtimeSyncHandle } from './services/realtimeSync'
+
+export { totalNuggetValue }
 
 const SESSION_STORAGE_KEY = 'dwarfest.session.v1'
 const TEMPLATE_STORAGE_KEY = 'dwarfest.template.v1'
 const ROLE_STORAGE_KEY = 'dwarfest.role.v1'
 const MAX_HISTORY = 10
 const MAX_PENDING_SYNC = 20
+const PARTICIPANT_PULL_RETRY_ATTEMPTS = 3
+const PARTICIPANT_PULL_RETRY_DELAY_MS = 1200
 const loadWarnings = ref<string[]>([])
+const toast = ref<string>('')
+let toastTimer: ReturnType<typeof window.setTimeout> | null = null
 const syncStatus = ref<MultiplayerSyncState>({ state: 'idle', detail: '' })
 const multiplayerRole = ref<MultiplayerRole>('host')
 const pendingSyncCount = ref(0)
@@ -143,10 +150,6 @@ function loadRole(): MultiplayerRole {
   return 'host'
 }
 
-export function totalNuggetValue(player: PlayerState) {
-  return player.copper + player.silver * 4 + player.gold * 10
-}
-
 const session = ref<GameSession>(loadSession())
 const template = ref<SavedTemplate | null>(loadTemplate())
 multiplayerRole.value = loadRole()
@@ -192,6 +195,43 @@ function enqueuePendingSync(nextSession: GameSession) {
   }
 
   pendingSyncCount.value = pendingSyncQueue.length
+}
+
+function applyRemoteSession(remoteSession: GameSession) {
+  applyingRemoteUpdate = true
+  skipNextPublish = true
+  session.value = cloneData(remoteSession)
+  applyingRemoteUpdate = false
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
+}
+
+async function pullLatestParticipantSession(maxAttempts = PARTICIPANT_PULL_RETRY_ATTEMPTS) {
+  if (!realtimeSync || multiplayerRole.value !== 'participant') {
+    return null
+  }
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const latest = await realtimeSync.pullLatest()
+
+    if (latest) {
+      return latest
+    }
+
+    if (attempt < maxAttempts) {
+      syncStatus.value = {
+        state: 'connecting',
+        detail: `Waiting for host state (${attempt}/${maxAttempts - 1})...`,
+      }
+      await delay(PARTICIPANT_PULL_RETRY_DELAY_MS * attempt)
+    }
+  }
+
+  return null
 }
 
 async function flushPendingSyncQueue() {
@@ -260,25 +300,20 @@ watch(
         }
       },
       onRemoteSession: (remoteSession) => {
-        applyingRemoteUpdate = true
-        skipNextPublish = true
-        session.value = cloneData(remoteSession)
-        applyingRemoteUpdate = false
+        applyRemoteSession(remoteSession)
       },
     })
 
     if (multiplayerRole.value === 'participant') {
-      const latest = await realtimeSync.pullLatest()
+      const latest = await pullLatestParticipantSession()
 
       if (latest) {
-        applyingRemoteUpdate = true
-        skipNextPublish = true
-        session.value = cloneData(latest)
-        applyingRemoteUpdate = false
+        applyRemoteSession(latest)
+        syncStatus.value = { state: 'connected', detail: 'Room synced from host state.' }
       } else {
         syncStatus.value = {
           state: 'error',
-          detail: `Room ${roomCode} not found yet. Ask host to start and sync first.`,
+          detail: `Room ${roomCode} not found yet. Ask host to start and sync first, then retry sync.`,
         }
       }
     }
@@ -444,11 +479,25 @@ function advanceStep() {
   session.value.updatedAt = new Date().toISOString()
 }
 
+function showToast(message: string, durationMs = 2800) {
+  if (toastTimer !== null) {
+    window.clearTimeout(toastTimer)
+  }
+
+  toast.value = message
+  toastTimer = window.setTimeout(() => {
+    toast.value = ''
+    toastTimer = null
+  }, durationMs)
+}
+
 function saveTemplate(config: GameConfig, playerNames: string[]) {
   template.value = {
     config,
     playerNames: playerNames.slice(0, config.playerCount),
   }
+
+  showToast('Template saved.')
 }
 
 function quickStartFromTemplate() {
@@ -472,6 +521,7 @@ function exportGame() {
   link.download = `dwarfest-${session.value.id}.json`
   link.click()
   window.URL.revokeObjectURL(url)
+  showToast('Game log exported.')
 }
 
 function resetSession() {
@@ -482,11 +532,37 @@ function resetSession() {
   session.value = createSetupSession()
 }
 
+async function retryParticipantSync() {
+  if (session.value.config.mode !== 'multiplayer' || session.value.status !== 'active') {
+    return false
+  }
+
+  if (multiplayerRole.value !== 'participant' || !realtimeSync) {
+    return false
+  }
+
+  syncStatus.value = { state: 'connecting', detail: 'Retrying room sync...' }
+  const latest = await pullLatestParticipantSession()
+
+  if (!latest) {
+    syncStatus.value = {
+      state: 'error',
+      detail: `Room ${session.value.roomCode} not found yet. Ask host to sync first, then retry.`,
+    }
+    return false
+  }
+
+  applyRemoteSession(latest)
+  syncStatus.value = { state: 'connected', detail: 'Room synced from host state.' }
+  return true
+}
+
 export function useGameState() {
   return {
     session,
     template,
     loadWarnings,
+    toast,
     syncStatus,
     multiplayerRole,
     pendingSyncCount,
@@ -497,5 +573,6 @@ export function useGameState() {
     quickStartFromTemplate,
     exportGame,
     resetSession,
+    retryParticipantSync,
   }
 }
