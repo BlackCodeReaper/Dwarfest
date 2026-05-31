@@ -31,6 +31,13 @@ alter table public.games replica identity full;
 alter table public.participants replica identity full;
 alter table public.game_actions replica identity full;
 
+-- Constrain room code shape so anonymous writers cannot create arbitrary rows.
+alter table public.games
+  drop constraint if exists games_room_code_format;
+alter table public.games
+  add constraint games_room_code_format
+  check (room_code ~ '^[A-Z0-9-]{3,16}$');
+
 drop policy if exists "allow anon read games" on public.games;
 create policy "allow anon read games"
   on public.games
