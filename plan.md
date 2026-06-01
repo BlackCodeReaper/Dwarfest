@@ -1,7 +1,7 @@
 # Dwarfest Execution Plan
 
 ## Current Status
-- Project preparation started.
+- Project preparation completed.
 - Goal order locked: gameplay correctness first, UI/UX polish second, multiplayer hardening and final fixes third.
 - This file is now the canonical execution tracker.
 
@@ -17,7 +17,7 @@
 
 ## Phase Plan (Operational)
 
-### Phase 0 - Repository Preparation (current)
+### Phase 0 - Repository Preparation (completed)
 1. Audit repository files and references.
 2. Remove only strongly proven unused files.
 3. Run test/build after cleanup.
@@ -78,4 +78,4 @@
 6. PWA check: install prompt and offline fallback still work.
 
 ## Next Milestone
-- Finish Phase 0 (cleanup + commit/push), then start Phase 1.
+- Start Phase 1 implementation (gameplay correctness foundation).
