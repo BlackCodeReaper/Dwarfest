@@ -1,7 +1,7 @@
 import { ref, watch } from 'vue'
 import { phases, type GameConfig, type GameMode, type GameSession, type MultiplayerRole, type MultiplayerSyncState, type PlayerState, type SavedTemplate, type SessionData, type SessionSnapshot } from './types'
 import { advanceTurnPointer } from './services/gameFlow'
-import { totalNuggetValue, applyAssetPurchase, applyAssetSale } from './services/gameUtils'
+import { totalNuggetValue, applyAssetPurchase, applyAssetSale, acceptedGuestsFromCards, applyCardRejection, generateDwarfServiceCards } from './services/gameUtils'
 import { createRealtimeSync, type RealtimeSyncHandle } from './services/realtimeSync'
 import { t } from './i18n'
 
@@ -67,6 +67,7 @@ function normalizePlayer(player: PlayerState): PlayerState {
     ...player,
     cardPayout: Number.isFinite(player.cardPayout) ? Math.max(0, Math.trunc(player.cardPayout)) : 0,
     cards: Array.isArray(player.cards) ? player.cards : [],
+    dwarfCards: Array.isArray(player.dwarfCards) ? player.dwarfCards : [],
   }
 }
 
@@ -102,6 +103,7 @@ function createPlayer(name: string, config: GameConfig): PlayerState {
     notes: '',
     cardPayout: 0,
     cards: [],
+    dwarfCards: [],
   }
 }
 
@@ -421,6 +423,40 @@ function sellAsset(playerId: string, asset: import('./types').PurchasableAsset) 
   return true
 }
 
+function generateServiceCards(playerId: string) {
+  if (!canMutateGameplay()) return false
+  const player = session.value.players.find((p) => p.id === playerId)
+  if (!player) return false
+
+  const cards = generateDwarfServiceCards(player.fame)
+  const acceptedGuests = acceptedGuestsFromCards(cards)
+
+  player.dwarfCards = cards
+  player.acceptedGuests = acceptedGuests
+  player.servedGuests = 0
+  player.pendingCounterThrows = acceptedGuests
+  session.value.updatedAt = new Date().toISOString()
+  return true
+}
+
+function rejectServiceCard(playerId: string, cardId: string) {
+  if (!canMutateGameplay()) return false
+  const player = session.value.players.find((p) => p.id === playerId)
+  if (!player) return false
+
+  const nextCards = applyCardRejection(player.dwarfCards, cardId)
+  if (!nextCards) return false
+
+  player.dwarfCards = nextCards
+  player.brawl += 1
+  const acceptedGuests = acceptedGuestsFromCards(nextCards)
+  player.acceptedGuests = acceptedGuests
+  player.servedGuests = Math.min(player.servedGuests, acceptedGuests)
+  player.pendingCounterThrows = Math.max(0, acceptedGuests - player.servedGuests)
+  session.value.updatedAt = new Date().toISOString()
+  return true
+}
+
 function createSnapshot(label: string): SessionSnapshot {
   const payload: SessionData = {
     config: cloneData(session.value.config),
@@ -667,5 +703,7 @@ export function useGameState() {
     leaveMultiplayerGame,
     retryParticipantSync,
     sellAsset,
+    generateServiceCards,
+    rejectServiceCard,
   }
 }

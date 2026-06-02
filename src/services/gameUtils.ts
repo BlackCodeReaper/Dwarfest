@@ -1,4 +1,4 @@
-import type { CardMode, PlayerState, PurchasableAsset, WalletState } from '../types'
+import type { CardMode, DwarfServiceCard, PlayerState, PurchasableAsset, WalletState } from '../types'
 import { BARREL_COST, BARREL_MAX, DANCER_COST, DANCER_MAX, TABLE_COST, TABLE_MAX } from '../types'
 
 export function totalNuggetValue(player: PlayerState): number {
@@ -17,6 +17,44 @@ export function finalScore(player: PlayerState, cardMode: CardMode): number {
   }
 
   return nuggets + totalCardPayout(player)
+}
+
+export function cardCountFromFame(fame: number): number {
+  if (fame >= 6) return 3
+  if (fame >= 3) return 2
+  return 1
+}
+
+export function generateDwarfServiceCards(fame: number, rng: () => number = Math.random): DwarfServiceCard[] {
+  const count = cardCountFromFame(Math.max(0, Math.trunc(fame)))
+
+  return Array.from({ length: count }, (_, index) => ({
+    id: `dwarf-card-${Date.now().toString(36)}-${index}-${Math.random().toString(36).slice(2, 6)}`,
+    dwarves: Math.floor(Math.min(0.999999999, Math.max(0, rng())) * 11),
+    rejected: false,
+  }))
+}
+
+export function acceptedGuestsFromCards(cards: DwarfServiceCard[]): number {
+  return cards.reduce((total, card) => {
+    if (card.rejected) return total
+    return total + Math.max(0, Math.trunc(card.dwarves))
+  }, 0)
+}
+
+export function applyCardRejection(cards: DwarfServiceCard[], cardId: string): DwarfServiceCard[] | null {
+  let didChange = false
+
+  const next = cards.map((card) => {
+    if (card.id !== cardId || card.rejected) {
+      return card
+    }
+
+    didChange = true
+    return { ...card, rejected: true }
+  })
+
+  return didChange ? next : null
 }
 
 export function walletTotal(wallet: WalletState): number {

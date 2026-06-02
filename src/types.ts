@@ -40,6 +40,12 @@ export interface GeneratedCard {
   phase: PhaseKey | 'any'
 }
 
+export interface DwarfServiceCard {
+  id: string
+  dwarves: number
+  rejected: boolean
+}
+
 export interface MultiplayerSyncState {
   state: SyncState
   detail: string
@@ -85,6 +91,7 @@ export interface PlayerState {
   notes: string
   cardPayout: number
   cards: GeneratedCard[]
+  dwarfCards: DwarfServiceCard[]
 }
 
 export interface SessionData {

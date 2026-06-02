@@ -19,6 +19,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   purchaseAsset: [asset: 'table' | 'barrel' | 'dancer']
   sellAsset: [asset: 'table' | 'barrel' | 'dancer']
+  generateServiceCards: []
+  rejectServiceCard: [cardId: string]
 }>()
 
 const brawlAtLimit = computed(() => {
@@ -60,11 +62,11 @@ const dancerAtMax = computed(() => props.player.dancers >= props.dancerMax)
       </label>
       <label>
         <span>{{ t('player.fame') }}</span>
-        <input v-model.number="player.fame" type="number" min="0" :disabled="readOnly" />
+        <input :value="player.fame" type="number" min="0" readonly disabled />
       </label>
       <label>
         <span :class="{ 'brawl-alert': brawlAtLimit }">{{ t('player.brawl') }}{{ brawlAtLimit ? ` ⚠ ${t('player.brawlTrigger')}` : '' }}</span>
-        <input v-model.number="player.brawl" type="number" min="0" :disabled="readOnly" :class="{ 'input--alert': brawlAtLimit }" />
+        <input :value="player.brawl" type="number" min="0" readonly disabled :class="{ 'input--alert': brawlAtLimit }" />
       </label>
 
       <label v-if="cardMode === 'in-app-generated'">
@@ -98,15 +100,15 @@ const dancerAtMax = computed(() => props.player.dancers >= props.dancerMax)
 
       <label>
         <span>{{ t('player.acceptedGuests') }}</span>
-        <input v-model.number="player.acceptedGuests" type="number" min="0" :disabled="readOnly" />
+        <input :value="player.acceptedGuests" type="number" min="0" readonly disabled />
       </label>
       <label>
         <span>{{ t('player.servedGuests') }}</span>
-        <input v-model.number="player.servedGuests" type="number" min="0" :disabled="readOnly" />
+        <input :value="player.servedGuests" type="number" min="0" readonly disabled />
       </label>
       <label>
         <span>{{ t('player.pendingThrows') }}</span>
-        <input v-model.number="player.pendingCounterThrows" type="number" min="0" :disabled="readOnly" />
+        <input :value="player.pendingCounterThrows" type="number" min="0" readonly disabled />
       </label>
       <label>
         <span>{{ t('player.successfulThrows') }}</span>
@@ -117,6 +119,30 @@ const dancerAtMax = computed(() => props.player.dancers >= props.dancerMax)
         <input v-model.number="player.failedThrows" type="number" min="0" :disabled="readOnly" />
       </label>
     </div>
+
+    <section v-if="cardMode === 'in-app-generated'" class="dwarf-cards">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">{{ t('cards.serviceTitle') }}</p>
+          <h3>{{ t('cards.serviceSubtitle') }}</h3>
+        </div>
+        <button class="button button--secondary" type="button" :disabled="readOnly" @click="emit('generateServiceCards')">
+          {{ t('cards.generate') }}
+        </button>
+      </div>
+
+      <ul class="history-list">
+        <li v-for="card in player.dwarfCards" :key="card.id">
+          <div>
+            <strong>{{ t('cards.dwarvesToServe', { value: card.dwarves }) }}</strong>
+            <p class="hint" v-if="card.rejected">{{ t('cards.rejected') }}</p>
+          </div>
+          <button class="button button--ghost" type="button" :disabled="readOnly || card.rejected" @click="emit('rejectServiceCard', card.id)">
+            {{ t('cards.rejectPlusRiot') }}
+          </button>
+        </li>
+      </ul>
+    </section>
 
     <label class="notes-field">
       <span>{{ t('player.notes') }}</span>

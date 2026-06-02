@@ -42,6 +42,8 @@ const {
   retryParticipantSync,
   purchaseAsset,
   sellAsset,
+  generateServiceCards,
+  rejectServiceCard,
 } = useGameState()
 
 const setupConfig = reactive(createDefaultConfig())
@@ -340,6 +342,10 @@ function resolveMiniGame() {
     currentPlayer.value.pendingCounterThrows = Math.max(0, currentPlayer.value.pendingCounterThrows - 1)
     if (success) {
       currentPlayer.value.successfulThrows += 1
+      if (currentPlayer.value.servedGuests < currentPlayer.value.acceptedGuests) {
+        currentPlayer.value.servedGuests += 1
+        currentPlayer.value.fame += 1
+      }
       miniGameResult.value = t('msg.beerServed')
     } else {
       currentPlayer.value.failedThrows += 1
@@ -364,10 +370,32 @@ function recordPhysicalThrow(success: boolean) {
 
   if (success) {
     currentPlayer.value.successfulThrows += 1
+    if (currentPlayer.value.servedGuests < currentPlayer.value.acceptedGuests) {
+      currentPlayer.value.servedGuests += 1
+      currentPlayer.value.fame += 1
+    }
   } else {
     currentPlayer.value.failedThrows += 1
     currentPlayer.value.brawl += 2
   }
+}
+
+function generateCurrentPlayerServiceCards() {
+  if (!currentPlayer.value || isParticipantView.value) {
+    return
+  }
+
+  const didGenerate = generateServiceCards(currentPlayer.value.id)
+  miniGameResult.value = didGenerate ? t('cards.generated') : t('cards.generateFailed')
+}
+
+function rejectCurrentPlayerServiceCard(cardId: string) {
+  if (!currentPlayer.value || isParticipantView.value) {
+    return
+  }
+
+  const didReject = rejectServiceCard(currentPlayer.value.id, cardId)
+  miniGameResult.value = didReject ? t('cards.rejectedWithRiot') : t('cards.rejectFailed')
 }
 
 function purchaseCurrentPlayerAsset(asset: 'table' | 'barrel' | 'dancer') {
@@ -558,6 +586,8 @@ watch(
           :card-mode="session.config.cardMode"
           @purchase-asset="purchaseCurrentPlayerAsset"
           @sell-asset="sellCurrentPlayerAsset"
+          @generate-service-cards="generateCurrentPlayerServiceCards"
+          @reject-service-card="rejectCurrentPlayerServiceCard"
         />
 
         <aside class="stack">

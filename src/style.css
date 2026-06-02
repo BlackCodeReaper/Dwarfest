@@ -338,6 +338,12 @@ label span,
   gap: 0.5rem;
 }
 
+.dwarf-cards {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.7rem;
+}
+
 .stat-bars {
   display: grid;
   gap: 0.35rem;

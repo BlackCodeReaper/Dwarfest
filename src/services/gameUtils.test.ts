@@ -7,6 +7,10 @@ import {
   canSell,
   deductNuggets,
   finalScore,
+  generateDwarfServiceCards,
+  cardCountFromFame,
+  acceptedGuestsFromCards,
+  applyCardRejection,
   normalizeWalletFromTotal,
   totalCardPayout,
   walletTotal,
@@ -31,6 +35,7 @@ const basePlayer = {
   notes: '',
   cardPayout: 0,
   cards: [],
+  dwarfCards: [],
 }
 
 describe('totalNuggetValue', () => {
@@ -153,5 +158,45 @@ describe('card payout scoring', () => {
   test('finalScore in in-app-generated include payout carte', () => {
     const player = { ...basePlayer, copper: 4, cardPayout: 20 }
     expect(finalScore(player, 'in-app-generated')).toBe(24)
+  })
+})
+
+describe('dwarf service card logic', () => {
+  test('cardCountFromFame applies default ranges', () => {
+    expect(cardCountFromFame(0)).toBe(1)
+    expect(cardCountFromFame(2)).toBe(1)
+    expect(cardCountFromFame(3)).toBe(2)
+    expect(cardCountFromFame(5)).toBe(2)
+    expect(cardCountFromFame(6)).toBe(3)
+  })
+
+  test('generateDwarfServiceCards creates cards in range 0..10', () => {
+    const cards = generateDwarfServiceCards(6, () => 0.5)
+    expect(cards).toHaveLength(3)
+    cards.forEach((card) => {
+      expect(card.dwarves).toBeGreaterThanOrEqual(0)
+      expect(card.dwarves).toBeLessThanOrEqual(10)
+      expect(card.rejected).toBe(false)
+    })
+  })
+
+  test('acceptedGuestsFromCards sums non rejected cards only', () => {
+    const cards = [
+      { id: 'a', dwarves: 4, rejected: false },
+      { id: 'b', dwarves: 3, rejected: true },
+      { id: 'c', dwarves: 2, rejected: false },
+    ]
+    expect(acceptedGuestsFromCards(cards)).toBe(6)
+  })
+
+  test('applyCardRejection marks target card rejected', () => {
+    const cards = [
+      { id: 'a', dwarves: 4, rejected: false },
+      { id: 'b', dwarves: 3, rejected: false },
+    ]
+
+    const next = applyCardRejection(cards, 'b')
+    expect(next).not.toBeNull()
+    expect(next?.[1].rejected).toBe(true)
   })
 })

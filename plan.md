@@ -7,6 +7,7 @@
 - Gameplay core economy wiring completed.
 - Phase 1 foundations extended with card-mode-ready scoring and session-safe defaults.
 - Phase 2 core UI/UX wiring completed (language selector, IT/EN localization baseline, fame/rissa bars in key views).
+- Rules reference URL added for agent decisions and gameplay rule clarifications.
 
 ## Completed So Far
 - Realtime channel filter mitigation in sync layer.
@@ -82,6 +83,17 @@
 - Gameplay nugget fields are readonly; mutations only through actions.
 - Limits: tables 0-10, barrels 0-10, dancers 0-3.
 - Card scope now: extensible R1 foundation; advanced effect system in R2.
+
+## Rules Reference (Agent Use)
+- Primary tabletop reference URL:
+	- https://geek.pizza/2018/02/21/il-gioco-sul-como-dwarfest/
+- Agent policy:
+	- If game-rule behavior is ambiguous, align implementation decisions with this reference before introducing custom rules.
+
+## New Gameplay Automation (2026-06-02)
+1. Fame and brawl are now automatic gameplay outputs and should remain readonly in active play UI.
+2. In-app generated service cards produce dwarf values in range 0..10.
+3. Rejecting one service card applies +1 brawl and removes its dwarf contribution from accepted/pending counts.
 
 ## Risks
 1. Advanced card effects need a formal DSL/rule schema in R2.
