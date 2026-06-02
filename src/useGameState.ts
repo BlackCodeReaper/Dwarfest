@@ -1,7 +1,7 @@
 import { ref, watch } from 'vue'
 import { phases, type GameConfig, type GameMode, type GameSession, type MultiplayerRole, type MultiplayerSyncState, type PlayerState, type SavedTemplate, type SessionData, type SessionSnapshot } from './types'
 import { advanceTurnPointer } from './services/gameFlow'
-import { totalNuggetValue } from './services/gameUtils'
+import { totalNuggetValue, applyAssetPurchase } from './services/gameUtils'
 import { createRealtimeSync, type RealtimeSyncHandle } from './services/realtimeSync'
 
 export { totalNuggetValue }
@@ -357,6 +357,19 @@ watch(
   { deep: true },
 )
 
+function purchaseAsset(playerId: string, asset: import('./types').PurchasableAsset) {
+  if (!canMutateGameplay()) return false
+  const player = session.value.players.find((p) => p.id === playerId)
+  if (!player) return false
+
+  const delta = applyAssetPurchase(player, asset)
+  if (!delta) return false
+
+  Object.assign(player, delta)
+  session.value.updatedAt = new Date().toISOString()
+  return true
+}
+
 function createSnapshot(label: string): SessionSnapshot {
   const payload: SessionData = {
     config: cloneData(session.value.config),
@@ -591,6 +604,7 @@ export function useGameState() {
     multiplayerRole,
     pendingSyncCount,
     startGame,
+    purchaseAsset,
     restoreSnapshot,
     advanceStep,
     saveTemplate,

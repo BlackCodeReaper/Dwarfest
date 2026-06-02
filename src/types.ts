@@ -10,16 +10,31 @@ export const MINI_GAME_TARGET_END = 57
 export const MINI_GAME_STEP = 4
 export const MINI_GAME_INTERVAL_MS = 45
 
+export const TABLE_COST = 4
+export const BARREL_COST = 1
+export const DANCER_COST = 3
+
+export const TABLE_MAX = 10
+export const BARREL_MAX = 10
+export const DANCER_MAX = 3
+
 export type PhaseKey = (typeof phases)[number]
 export type GameMode = 'pass-around' | 'multiplayer'
 export type BeerMode = 'physical' | 'mini-game'
 export type SessionStatus = 'setup' | 'active' | 'finished'
 export type SyncState = 'idle' | 'connecting' | 'connected' | 'syncing' | 'offline' | 'unconfigured' | 'error'
 export type MultiplayerRole = 'host' | 'participant'
+export type PurchasableAsset = 'table' | 'barrel' | 'dancer'
 
 export interface MultiplayerSyncState {
   state: SyncState
   detail: string
+}
+
+export interface WalletState {
+  copper: number
+  silver: number
+  gold: number
 }
 
 export interface GameConfig {
