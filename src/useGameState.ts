@@ -448,6 +448,7 @@ function rejectServiceCard(playerId: string, cardId: string) {
   if (!nextCards) return false
 
   player.dwarfCards = nextCards
+  player.fame = Math.max(0, player.fame - 1)
   player.brawl += 1
   const acceptedGuests = acceptedGuestsFromCards(nextCards)
   player.acceptedGuests = acceptedGuests

@@ -1,112 +1,78 @@
 # Dwarfest Execution Plan
 
 ## Current Status
-- Project preparation completed.
-- Goal order locked: gameplay correctness first, UI/UX polish second, multiplayer hardening and final fixes third.
-- This file is now the canonical execution tracker.
-- Gameplay core economy wiring completed.
-- Phase 1 foundations extended with card-mode-ready scoring and session-safe defaults.
-- Phase 2 core UI/UX wiring completed (language selector, IT/EN localization baseline, fame/rissa bars in key views).
-- Rules reference URL added for agent decisions and gameplay rule clarifications.
+- Phase 0 complete.
+- Phase 1 and 2 substantially complete (economy automation, card-mode foundation, bilingual UI baseline, charts).
+- Opening rejection penalty aligned to tabletop rule (-1 fame, +1 brawl).
+- Next active work: Phase 3 hardening + remaining tabletop flow completion.
 
-## Completed So Far
-- Realtime channel filter mitigation in sync layer.
-- Supabase env validation and missing-config safeguards.
-- Participant retry sync with backoff.
-- Finished game flow and winner/ranking UI.
-- Exit game and leave room actions.
-- PWA setup (manifest, service worker, install prompt).
-- Vercel SPA rewrites and headers.
-- Schema hardening including room code constraint.
+## Rules Reference (Agent Use)
+- Primary source: https://geek.pizza/2018/02/21/il-gioco-sul-como-dwarfest/
+- Rule policy: if behavior is ambiguous, align with source before introducing custom logic.
+
+## Canonical Flow (Tabletop)
+1. 5 rounds total.
+2. Per round phases: Supplies -> Opening -> Service -> Brawl -> Collection.
+3. Opening rejection: for each rejected client card, -1 fame and +1 brawl.
+4. Service constraints: each table seats max 4 dwarves, each barrel = 5 beers, opened barrels consumed entirely.
+5. Brawl trigger: >=6 (>=5 epic variant), destruction order tables -> barrels -> dancers.
+6. Collection: payout = effectively served dwarves, brawl reset to 1, fame persists.
+
+## App Adaptation Boundaries
+1. Beer service can be physical or in-app minigame.
+2. Client/service cards can be generated in-app for digital-only play.
+3. Destruction may be resolved atomically in app (with clear feedback) instead of manual step-by-step.
+4. Economy math (pepite/asset costs) is app-automated and host-authoritative in multiplayer.
 
 ## Phase Plan (Operational)
 
-### Phase 0 - Repository Preparation (completed)
-1. Audit repository files and references.
-2. Remove only strongly proven unused files.
-3. Run test/build after cleanup.
-4. Commit and push preparation changes.
+### Phase 0 - Repository Preparation (Completed)
+1. Audit, cleanup, test/build, commit/push completed.
 
-### Phase 1 - Gameplay Correctness Foundation
-1. Extend domain model in [src/types.ts](src/types.ts):
-	- transaction-safe economy,
-	- card mode and card lifecycle hooks,
-	- chart scale config (default 1-20).
-2. Implement pure rules in [src/services/gameUtils.ts](src/services/gameUtils.ts):
-	- table/barrel/dancer costs,
-	- affordability checks,
-	- wallet floor at 0,
-	- coin normalization,
-	- mode-aware final score.
-3. Add regression tests in [src/services/gameUtils.test.ts](src/services/gameUtils.test.ts).
-4. Integrate state and authority guards in [src/useGameState.ts](src/useGameState.ts).
-5. Status update (2026-06-02):
-	- Implemented purchase/sale transaction APIs in state.
-	- Wired PlayerSheet +/- controls for table, barrel, dancer.
-	- Set nugget currency fields to readonly in gameplay.
-	- Added wallet normalization by total nuggets in utilities.
-	- Added card-ready config/types (card mode, player card payout, player cards container).
-	- Added mode-aware final score calculation (physical vs in-app-generated).
-	- Added migration-safe normalization for loaded session/template config and player fields.
-	- Expanded unit tests for affordability, normalization, purchase/sale behavior and score composition.
-	- Phase 1 now substantially completed for R1 foundation.
+### Phase 1 - Gameplay Correctness Foundation (Substantially Completed)
+1. Transaction-safe economy and limits.
+2. Mode-aware scoring and wallet normalization.
+3. Card-mode-ready types/state + migration-safe load.
+4. Unit tests for core utility rules.
 
-### Phase 2 - UI/UX Integration
-1. Setup controls in [src/components/SetupScreen.vue](src/components/SetupScreen.vue):
-	- language selector,
-	- gameplay config fields needed before start.
-2. Player interaction in [src/components/PlayerSheet.vue](src/components/PlayerSheet.vue):
-	- nugget inputs readonly,
-	- plus/minus actions for table, barrel, dancer,
-	- card controls aligned with phase constraints.
-3. Visual upgrades:
-	- fame/riot bars in player sheet,
-	- fame/riot bars in scoreboard,
-	- fame/riot bars in endgame summary.
-4. IT/EN localization across app UI and user-facing texts.
-5. Status update (2026-06-02):
-	- Added setup-only language selector with browser-language default and persisted locale.
-	- Localized core UI panels and runtime interactions (setup/play/checkpoints/history/finished).
-	- Added fame/rissa bar charts in player sheet, scoreboard, and final standings.
-	- Added score and card bonus rendering for in-app-generated card mode.
-	- Remaining in Phase 2: complete localization pass for every remaining status/sync string.
+### Phase 2 - UI/UX Integration (Substantially Completed)
+1. Readonly nugget fields and transactional controls.
+2. IT/EN setup selector and localized core UI.
+3. Fame/brawl bars in player sheet, scoreboard, final screen.
 
-### Phase 3 - Multiplayer Hardening And Final Fixes
-1. Validate host-authoritative behavior for all payout-impacting actions.
-2. Validate participant read-only behavior for gameplay mutations.
-3. Validate reconnect and realtime payload compatibility.
-4. Final bug fixes and UX consistency pass.
+### Phase 3 - Multiplayer Hardening And Tabletop Flow Integration (Current Focus)
+1. Validate host-authoritative enforcement for all payout-affecting actions.
+2. Validate participant read-only enforcement for gameplay mutations.
+3. Reconnect and realtime payload hardening for new service/card state.
+4. Complete tabletop flow logic gaps:
+   - verify Opening rejection penalty behavior in multiplayer/reconnect flows.
+   - complete Service capacity/beer accounting edge handling.
+   - complete Brawl destruction sequence and Collection reset/payout consistency.
+
+### Phase 4 - Final Fixes And Polish
+1. Complete remaining i18n strings (sync/status/edge prompts).
+2. UX polish for service/brawl/collection transitions.
+3. Regression validation and release readiness.
 
 ## Locked Rules For Implementation
-- Costs: table 4 nuggets, barrel 1 nugget, dancer 3 nuggets.
-- Wallet must never go below 0.
-- Gameplay nugget fields are readonly; mutations only through actions.
-- Limits: tables 0-10, barrels 0-10, dancers 0-3.
-- Card scope now: extensible R1 foundation; advanced effect system in R2.
-
-## Rules Reference (Agent Use)
-- Primary tabletop reference URL:
-	- https://geek.pizza/2018/02/21/il-gioco-sul-como-dwarfest/
-- Agent policy:
-	- If game-rule behavior is ambiguous, align implementation decisions with this reference before introducing custom rules.
-
-## New Gameplay Automation (2026-06-02)
-1. Fame and brawl are now automatic gameplay outputs and should remain readonly in active play UI.
-2. In-app generated service cards produce dwarf values in range 0..10.
-3. Rejecting one service card applies +1 brawl and removes its dwarf contribution from accepted/pending counts.
+1. Costs: table=4, barrel=1, dancer=3 nuggets.
+2. Wallet never below 0; gameplay nugget fields readonly.
+3. Limits: tables 0-10, barrels 0-10, dancers 0-3.
+4. Opening rejection penalty must be -1 fame and +1 brawl.
+5. Brawl destruction order remains tables -> barrels -> dancers.
+6. Collection remains payout by served dwarves + brawl reset to 1 + fame persistence.
 
 ## Risks
-1. Advanced card effects need a formal DSL/rule schema in R2.
-2. External production checks still depend on hosted Supabase and Vercel access.
-3. Realtime edge cases may appear only in two-device network tests.
+1. Remaining multiplayer edge cases emerge only under two-device realtime conditions.
+2. Rule-accurate service/collection automation may conflict with older local saves unless migrated carefully.
+3. Advanced card effects still require formal DSL and balancing pass in R2.
 
 ## Verification Checkpoints
-1. `npm run test` passes after each major phase.
-2. `npm run build` passes after each major phase.
-3. Manual gameplay check: economy updates correctly and never underflows.
-4. Manual UI check: nugget fields cannot be edited directly in gameplay.
-5. Multiplayer check: participant cannot mutate protected state.
-6. PWA check: install prompt and offline fallback still work.
+1. `npm run test` passes after each major increment.
+2. `npm run build` passes after each major increment.
+3. Multiplayer smoke: participant cannot mutate protected state.
+4. Gameplay smoke: opening rejection applies fame+rissa penalty correctly.
+5. PWA smoke: install and offline fallback intact.
 
 ## Next Milestone
-- Start Phase 3 hardening: multiplayer host/participant smoke checks, reconnect payload validation, and final i18n/card UX polish.
+1. Finish Phase 3 by validating multiplayer/reconnect behavior on service-card actions and completing service/brawl/collection rule hardening.
