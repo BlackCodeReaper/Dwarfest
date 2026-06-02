@@ -1,34 +1,38 @@
-import type { PlayerState, PurchasableAsset, WalletState } from '../types';
-import { BARREL_COST, BARREL_MAX, DANCER_COST, DANCER_MAX, TABLE_COST, TABLE_MAX } from '../types';
+import type { CardMode, PlayerState, PurchasableAsset, WalletState } from '../types'
+import { BARREL_COST, BARREL_MAX, DANCER_COST, DANCER_MAX, TABLE_COST, TABLE_MAX } from '../types'
 
 export function totalNuggetValue(player: PlayerState): number {
   return player.copper + player.silver * 4 + player.gold * 10
 }
 
-/** Valore totale di un WalletState (usato anche per wallet parziali) */
+export function totalCardPayout(player: PlayerState): number {
+  return Math.max(0, Math.trunc(player.cardPayout ?? 0))
+}
+
+export function finalScore(player: PlayerState, cardMode: CardMode): number {
+  const nuggets = totalNuggetValue(player)
+
+  if (cardMode === 'physical') {
+    return nuggets
+  }
+
+  return nuggets + totalCardPayout(player)
+}
+
 export function walletTotal(wallet: WalletState): number {
   return wallet.copper + wallet.silver * 4 + wallet.gold * 10
 }
 
-/** Costo in nuggets di un asset acquistabile */
 export function assetCost(asset: PurchasableAsset): number {
   if (asset === 'table') return TABLE_COST
   if (asset === 'barrel') return BARREL_COST
   return DANCER_COST
 }
 
-/** Limite massimo di un asset */
 export function assetMax(asset: PurchasableAsset): number {
   if (asset === 'table') return TABLE_MAX
   if (asset === 'barrel') return BARREL_MAX
   return DANCER_MAX
-}
-
-/** Il giocatore può permettersi l'acquisto? */
-export function canAfford(player: PlayerState, asset: PurchasableAsset): boolean {
-  const current = assetCount(player, asset)
-  if (current >= assetMax(asset)) return false
-  return totalNuggetValue(player) >= assetCost(asset)
 }
 
 function assetCount(player: PlayerState, asset: PurchasableAsset): number {
@@ -37,42 +41,38 @@ function assetCount(player: PlayerState, asset: PurchasableAsset): number {
   return player.dancers
 }
 
-/**
- * Scala i nuggets del giocatore sottraendo `amount` nella forma più
- * conveniente (prima gold, poi silver, poi copper), floor a 0.
- * Restituisce una copia immutabile dei campi wallet.
- */
-export function deductNuggets(player: PlayerState, amount: number): WalletState {
-  let remaining = Math.max(0, amount)
-  let gold = player.gold
-  let silver = player.silver
-  let copper = player.copper
+export function normalizeWalletFromTotal(totalNuggets: number): WalletState {
+  let remaining = Math.max(0, Math.trunc(totalNuggets))
+  const gold = Math.floor(remaining / 10)
+  remaining -= gold * 10
+  const silver = Math.floor(remaining / 4)
+  remaining -= silver * 4
+  const copper = remaining
 
-  const goldToUse = Math.min(gold, Math.floor(remaining / 10))
-  gold -= goldToUse
-  remaining -= goldToUse * 10
-
-  const silverToUse = Math.min(silver, Math.floor(remaining / 4))
-  silver -= silverToUse
-  remaining -= silverToUse * 4
-
-  const copperToUse = Math.min(copper, remaining)
-  copper -= copperToUse
-  remaining -= copperToUse
-
-  // Se ancora remaining > 0 significa che non c'erano abbastanza fondi;
-  // in quel caso non sottraiamo nulla (la chiamante deve usare canAfford prima).
-  if (remaining > 0) {
-    return { gold: player.gold, silver: player.silver, copper: player.copper }
-  }
-
-  return { gold, silver, copper }
+  return { copper, silver, gold }
 }
 
-/**
- * Applica l'acquisto di un asset al giocatore.
- * Restituisce null se l'acquisto non è possibile.
- */
+export function canAfford(player: PlayerState, asset: PurchasableAsset): boolean {
+  const current = assetCount(player, asset)
+  if (current >= assetMax(asset)) return false
+  return totalNuggetValue(player) >= assetCost(asset)
+}
+
+export function canSell(player: PlayerState, asset: PurchasableAsset): boolean {
+  return assetCount(player, asset) > 0
+}
+
+export function deductNuggets(player: PlayerState, amount: number): WalletState {
+  const total = totalNuggetValue(player)
+  const deduction = Math.max(0, Math.trunc(amount))
+
+  if (deduction > total) {
+    return { copper: player.copper, silver: player.silver, gold: player.gold }
+  }
+
+  return normalizeWalletFromTotal(total - deduction)
+}
+
 export function applyAssetPurchase(
   player: PlayerState,
   asset: PurchasableAsset,
@@ -86,6 +86,23 @@ export function applyAssetPurchase(
   if (asset === 'table') delta.tables = player.tables + 1
   if (asset === 'barrel') delta.barrels = player.barrels + 1
   if (asset === 'dancer') delta.dancers = player.dancers + 1
+
+  return delta
+}
+
+export function applyAssetSale(
+  player: PlayerState,
+  asset: PurchasableAsset,
+): Partial<PlayerState> | null {
+  if (!canSell(player, asset)) return null
+
+  const reward = assetCost(asset)
+  const wallet = normalizeWalletFromTotal(totalNuggetValue(player) + reward)
+
+  const delta: Partial<PlayerState> = { ...wallet }
+  if (asset === 'table') delta.tables = player.tables - 1
+  if (asset === 'barrel') delta.barrels = player.barrels - 1
+  if (asset === 'dancer') delta.dancers = player.dancers - 1
 
   return delta
 }

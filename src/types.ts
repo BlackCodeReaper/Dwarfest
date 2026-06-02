@@ -21,10 +21,24 @@ export const DANCER_MAX = 3
 export type PhaseKey = (typeof phases)[number]
 export type GameMode = 'pass-around' | 'multiplayer'
 export type BeerMode = 'physical' | 'mini-game'
+export type CardMode = 'physical' | 'in-app-generated'
 export type SessionStatus = 'setup' | 'active' | 'finished'
 export type SyncState = 'idle' | 'connecting' | 'connected' | 'syncing' | 'offline' | 'unconfigured' | 'error'
 export type MultiplayerRole = 'host' | 'participant'
 export type PurchasableAsset = 'table' | 'barrel' | 'dancer'
+export type CardKind = 'character' | 'event'
+export type CardTarget = 'self' | 'opponent' | 'either'
+
+export interface GeneratedCard {
+  id: string
+  name: string
+  kind: CardKind
+  target: CardTarget
+  cost: number
+  payout: number
+  played: boolean
+  phase: PhaseKey | 'any'
+}
 
 export interface MultiplayerSyncState {
   state: SyncState
@@ -41,8 +55,10 @@ export interface GameConfig {
   mode: GameMode
   rounds: number
   beerMode: BeerMode
+  cardMode: CardMode
   epicVariant: boolean
   playerCount: number
+  chartScaleMax: number
   startingCopper: number
   startingSilver: number
   startingGold: number
@@ -67,6 +83,8 @@ export interface PlayerState {
   successfulThrows: number
   failedThrows: number
   notes: string
+  cardPayout: number
+  cards: GeneratedCard[]
 }
 
 export interface SessionData {

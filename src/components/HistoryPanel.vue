@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { type SessionSnapshot } from '../types'
+import { t } from '../i18n'
 
 const props = defineProps<{
   history: SessionSnapshot[]
@@ -18,8 +19,8 @@ const reversedHistory = computed(() => [...props.history].reverse())
   <article class="panel">
     <div class="section-head">
       <div>
-        <p class="eyebrow">History</p>
-        <h2>Last checkpoints</h2>
+        <p class="eyebrow">{{ t('history.title') }}</p>
+        <h2>{{ t('history.last') }}</h2>
       </div>
     </div>
     <ul class="history-list">
@@ -28,7 +29,7 @@ const reversedHistory = computed(() => [...props.history].reverse())
           <strong>{{ snapshot.label }}</strong>
           <p class="hint">{{ new Date(snapshot.takenAt).toLocaleTimeString() }}</p>
         </div>
-        <button class="button button--ghost" @click="emit('restore', snapshot.id)" :disabled="canRestore === false">Restore</button>
+        <button class="button button--ghost" @click="emit('restore', snapshot.id)" :disabled="canRestore === false">{{ t('history.restore') }}</button>
       </li>
     </ul>
   </article>

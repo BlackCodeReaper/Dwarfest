@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { t } from '../i18n'
+
 defineProps<{
   beerMode: 'physical' | 'mini-game'
   pendingThrows: number
@@ -20,18 +22,18 @@ const emit = defineEmits<{
   <article class="panel">
     <div class="section-head">
       <div>
-        <p class="eyebrow">Beer Throw Assistant</p>
-        <h2>{{ beerMode === 'mini-game' ? 'Mini-game' : 'Physical throws' }}</h2>
+        <p class="eyebrow">{{ t('throw.assistant') }}</p>
+        <h2>{{ beerMode === 'mini-game' ? t('throw.minigame') : t('throw.physical') }}</h2>
       </div>
-      <span class="badge">Pending {{ pendingThrows }}</span>
+      <span class="badge">{{ t('throw.pending', { value: pendingThrows }) }}</span>
     </div>
 
     <template v-if="beerMode === 'physical'">
       <div class="action-row">
-        <button class="button" @click="emit('physicalThrow', true)" :disabled="disabled">Mark success</button>
-        <button class="button button--secondary" @click="emit('physicalThrow', false)" :disabled="disabled">Mark spill</button>
+        <button class="button" @click="emit('physicalThrow', true)" :disabled="disabled">{{ t('throw.success') }}</button>
+        <button class="button button--secondary" @click="emit('physicalThrow', false)" :disabled="disabled">{{ t('throw.spill') }}</button>
       </div>
-      <p class="hint">Spills add +2 brawl automatically. Fame is still manual because free beers and served dwarves score differently.</p>
+      <p class="hint">{{ t('throw.spillHint') }}</p>
     </template>
 
     <template v-else>
@@ -41,10 +43,10 @@ const emit = defineEmits<{
           <div class="meter__gem" :style="{ left: `${miniGameMeter}%` }"></div>
         </div>
         <div class="action-row">
-          <button v-if="!miniGameActive" class="button" @click="emit('startMiniGame')" :disabled="disabled">Start throw</button>
-          <button v-else class="button" @click="emit('resolveMiniGame')" :disabled="disabled">Stop</button>
+          <button v-if="!miniGameActive" class="button" @click="emit('startMiniGame')" :disabled="disabled">{{ t('throw.start') }}</button>
+          <button v-else class="button" @click="emit('resolveMiniGame')" :disabled="disabled">{{ t('throw.stop') }}</button>
         </div>
-        <p class="hint">{{ miniGameResult || 'Hit the center lane to count as a clean serve.' }}</p>
+        <p class="hint">{{ miniGameResult || t('throw.defaultHint') }}</p>
       </div>
     </template>
   </article>

@@ -327,6 +327,56 @@ label span,
   min-height: 120px;
 }
 
+.asset-field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.asset-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 0.4fr) minmax(0, 0.6fr);
+  gap: 0.5rem;
+}
+
+.stat-bars {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 0.8rem;
+}
+
+.stat-bars--compact {
+  margin-bottom: 0;
+  min-width: 160px;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.stat-track {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.stat-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.stat-fill--fame {
+  background: linear-gradient(90deg, rgba(127, 203, 139, 0.9), rgba(90, 171, 104, 0.9));
+}
+
+.stat-fill--brawl {
+  background: linear-gradient(90deg, rgba(255, 140, 120, 0.9), rgba(205, 77, 63, 0.9));
+}
+
 .mini-game {
   display: grid;
   gap: 1rem;

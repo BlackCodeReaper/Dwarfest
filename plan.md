@@ -4,6 +4,9 @@
 - Project preparation completed.
 - Goal order locked: gameplay correctness first, UI/UX polish second, multiplayer hardening and final fixes third.
 - This file is now the canonical execution tracker.
+- Gameplay core economy wiring completed.
+- Phase 1 foundations extended with card-mode-ready scoring and session-safe defaults.
+- Phase 2 core UI/UX wiring completed (language selector, IT/EN localization baseline, fame/rissa bars in key views).
 
 ## Completed So Far
 - Realtime channel filter mitigation in sync layer.
@@ -36,6 +39,16 @@
 	- mode-aware final score.
 3. Add regression tests in [src/services/gameUtils.test.ts](src/services/gameUtils.test.ts).
 4. Integrate state and authority guards in [src/useGameState.ts](src/useGameState.ts).
+5. Status update (2026-06-02):
+	- Implemented purchase/sale transaction APIs in state.
+	- Wired PlayerSheet +/- controls for table, barrel, dancer.
+	- Set nugget currency fields to readonly in gameplay.
+	- Added wallet normalization by total nuggets in utilities.
+	- Added card-ready config/types (card mode, player card payout, player cards container).
+	- Added mode-aware final score calculation (physical vs in-app-generated).
+	- Added migration-safe normalization for loaded session/template config and player fields.
+	- Expanded unit tests for affordability, normalization, purchase/sale behavior and score composition.
+	- Phase 1 now substantially completed for R1 foundation.
 
 ### Phase 2 - UI/UX Integration
 1. Setup controls in [src/components/SetupScreen.vue](src/components/SetupScreen.vue):
@@ -50,6 +63,12 @@
 	- fame/riot bars in scoreboard,
 	- fame/riot bars in endgame summary.
 4. IT/EN localization across app UI and user-facing texts.
+5. Status update (2026-06-02):
+	- Added setup-only language selector with browser-language default and persisted locale.
+	- Localized core UI panels and runtime interactions (setup/play/checkpoints/history/finished).
+	- Added fame/rissa bar charts in player sheet, scoreboard, and final standings.
+	- Added score and card bonus rendering for in-app-generated card mode.
+	- Remaining in Phase 2: complete localization pass for every remaining status/sync string.
 
 ### Phase 3 - Multiplayer Hardening And Final Fixes
 1. Validate host-authoritative behavior for all payout-impacting actions.
@@ -78,4 +97,4 @@
 6. PWA check: install prompt and offline fallback still work.
 
 ## Next Milestone
-- Start Phase 1 implementation (gameplay correctness foundation).
+- Start Phase 3 hardening: multiplayer host/participant smoke checks, reconnect payload validation, and final i18n/card UX polish.

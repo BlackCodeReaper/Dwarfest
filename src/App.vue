@@ -8,6 +8,9 @@ import PlayerSheet from './components/PlayerSheet.vue'
 import ScoreboardPanel from './components/ScoreboardPanel.vue'
 import SetupScreen from './components/SetupScreen.vue'
 import {
+  BARREL_MAX,
+  DANCER_MAX,
+  TABLE_MAX,
   MINI_GAME_INTERVAL_MS,
   MINI_GAME_STEP,
   MINI_GAME_TARGET_END,
@@ -16,6 +19,8 @@ import {
   type GameMode,
 } from './types'
 import { createDefaultConfig, totalNuggetValue, useGameState } from './useGameState'
+import { locale, setLocale, t } from './i18n'
+import { finalScore } from './services/gameUtils'
 import { isSupabaseConfigured } from './services/supabase'
 
 const {
@@ -35,6 +40,8 @@ const {
   resetSession,
   leaveMultiplayerGame,
   retryParticipantSync,
+  purchaseAsset,
+  sellAsset,
 } = useGameState()
 
 const setupConfig = reactive(createDefaultConfig())
@@ -79,7 +86,9 @@ const phaseIndex = computed(() => phases.indexOf(session.value.currentPhase))
 const brawlThreshold = computed(() => session.value.config.epicVariant ? 5 : 6)
 const lastSnapshot = computed(() => session.value.history.at(-1) ?? null)
 const scoreBoard = computed(() => {
-  return [...session.value.players].sort((left, right) => totalNuggetValue(right) - totalNuggetValue(left))
+  return [...session.value.players].sort(
+    (left, right) => finalScore(right, session.value.config.cardMode) - finalScore(left, session.value.config.cardMode),
+  )
 })
 const miniGameTargetStyle = computed(() => ({
   left: `${MINI_GAME_TARGET_START}%`,
@@ -91,18 +100,18 @@ const nextActionLabel = computed(() => {
   const isLastRound = session.value.currentRound === session.value.config.rounds
 
   if (isLastPlayer && isLastPhase && isLastRound) {
-    return 'Finish game'
+    return t('action.finishGame')
   }
 
   if (isLastPlayer && isLastPhase) {
-    return `Start round ${session.value.currentRound + 1}`
+    return t('action.startRound', { round: session.value.currentRound + 1 })
   }
 
   if (isLastPlayer) {
-    return `Advance to ${labelForPhase(phases[phaseIndex.value + 1])}`
+    return t('action.advancePhase', { phase: labelForPhase(phases[phaseIndex.value + 1]) })
   }
 
-  return `Pass to ${session.value.players[session.value.currentPlayerIndex + 1]?.name ?? 'next player'}`
+  return t('action.passTo', { name: session.value.players[session.value.currentPlayerIndex + 1]?.name ?? 'next player' })
 })
 const multiplayerStatusLine = computed(() => {
   if (session.value.config.mode !== 'multiplayer') {
@@ -111,7 +120,7 @@ const multiplayerStatusLine = computed(() => {
 
   const stateLabel = syncStatus.value.state.charAt(0).toUpperCase() + syncStatus.value.state.slice(1)
   const queueSuffix = pendingSyncCount.value > 0 ? ` · queued ${pendingSyncCount.value}` : ''
-  const roleLabel = activeMultiplayerRole.value === 'participant' ? 'Participant' : 'Host'
+  const roleLabel = activeMultiplayerRole.value === 'participant' ? t('role.participant') : t('role.host')
 
   if (syncStatus.value.detail) {
     return `${roleLabel} · ${stateLabel} - ${syncStatus.value.detail}${queueSuffix}`
@@ -131,14 +140,18 @@ const canRetryParticipantSync = computed(() => {
 })
 const exitGameLabel = computed(() => {
   if (session.value.config.mode === 'multiplayer') {
-    return activeMultiplayerRole.value === 'participant' ? 'Leave room' : 'Exit room'
+    return activeMultiplayerRole.value === 'participant' ? t('status.leaveRoom') : t('status.exitRoom')
   }
 
-  return 'Exit game'
+  return t('status.exitGame')
 })
 
 function labelForPhase(phase: string) {
-  return phase.charAt(0).toUpperCase() + phase.slice(1)
+  return t(`phase.${phase}`)
+}
+
+function setAppLocale(nextLocale: 'en' | 'it') {
+  setLocale(nextLocale)
 }
 
 function setMode(mode: GameMode) {
@@ -176,7 +189,7 @@ function validatedSetupNames() {
   })
 
   if (hasDuplicates) {
-    return { names: trimmed, error: 'Player names must be unique.' }
+    return { names: trimmed, error: t('msg.playerUnique') }
   }
 
   const withFallbacks = trimmed.map((name, index) => name || `Player ${index + 1}`)
@@ -214,7 +227,7 @@ function startFromDraft() {
 
   if (setupConfig.mode === 'multiplayer' && multiplayerSetupRole.value === 'join') {
     if (!roomCodeDraft.value) {
-      setupError.value = 'Enter a room code to join a multiplayer game.'
+      setupError.value = t('msg.enterRoomCode')
       return
     }
   }
@@ -242,7 +255,7 @@ function restoreLastCheckpoint() {
     return
   }
 
-  if (!window.confirm('Restore to the last checkpoint? Current unsaved changes will be lost.')) {
+  if (!window.confirm(t('msg.restoreCheckpoint'))) {
     return
   }
 
@@ -250,7 +263,7 @@ function restoreLastCheckpoint() {
 }
 
 function confirmResetSession() {
-  if (!window.confirm('Start a new game? The current session will be lost unless you export it first.')) {
+  if (!window.confirm(t('msg.newGameConfirm'))) {
     return
   }
 
@@ -261,8 +274,8 @@ function confirmExitGame() {
   if (session.value.config.mode === 'multiplayer') {
     const message =
       activeMultiplayerRole.value === 'participant'
-        ? 'Leave this multiplayer room and return to setup?'
-        : 'Exit this multiplayer room for everyone on this device and return to setup?'
+        ? t('msg.leaveRoomConfirm')
+        : t('msg.exitRoomConfirm')
 
     if (!window.confirm(message)) {
       return
@@ -272,7 +285,7 @@ function confirmExitGame() {
     return
   }
 
-  if (!window.confirm('Exit this game and return to setup? Unsaved progress will be lost unless exported.')) {
+  if (!window.confirm(t('msg.exitGameConfirm'))) {
     return
   }
 
@@ -286,7 +299,7 @@ function startMiniGame() {
 
   stopMiniGame()
   miniGameActive.value = true
-  miniGameResult.value = 'Tap stop when the gem enters the bright lane.'
+  miniGameResult.value = t('throw.defaultHint')
   miniGameMeter.value = 0
   miniGameDirection = 1
   miniGameTimer = window.setInterval(() => {
@@ -327,11 +340,11 @@ function resolveMiniGame() {
     currentPlayer.value.pendingCounterThrows = Math.max(0, currentPlayer.value.pendingCounterThrows - 1)
     if (success) {
       currentPlayer.value.successfulThrows += 1
-      miniGameResult.value = 'Served cleanly. Adjust fame manually if this throw seated a dwarf.'
+      miniGameResult.value = t('msg.beerServed')
     } else {
       currentPlayer.value.failedThrows += 1
       currentPlayer.value.brawl += 2
-      miniGameResult.value = 'Beer spilled. The app added +2 brawl for the wasted beer.'
+      miniGameResult.value = t('msg.beerSpilled')
     }
   }
 
@@ -355,6 +368,28 @@ function recordPhysicalThrow(success: boolean) {
     currentPlayer.value.failedThrows += 1
     currentPlayer.value.brawl += 2
   }
+}
+
+function purchaseCurrentPlayerAsset(asset: 'table' | 'barrel' | 'dancer') {
+  if (!currentPlayer.value || isParticipantView.value) {
+    return
+  }
+
+  const purchased = purchaseAsset(currentPlayer.value.id, asset)
+  miniGameResult.value = purchased
+    ? t('msg.purchaseOk', { asset: t(`asset.${asset}`) })
+    : t('msg.purchaseFail', { asset: t(`asset.${asset}`) })
+}
+
+function sellCurrentPlayerAsset(asset: 'table' | 'barrel' | 'dancer') {
+  if (!currentPlayer.value || isParticipantView.value) {
+    return
+  }
+
+  const sold = sellAsset(currentPlayer.value.id, asset)
+  miniGameResult.value = sold
+    ? t('msg.sellOk', { asset: t(`asset.${asset}`) })
+    : t('msg.sellFail', { asset: t(`asset.${asset}`) })
 }
 
 async function promptInstall() {
@@ -403,6 +438,7 @@ watch(
     setupConfig.startingGold,
     setupConfig.startingFame,
     setupConfig.startingBrawl,
+    setupConfig.chartScaleMax,
   ],
   () => {
     setupConfig.playerCount = clamp(setupConfig.playerCount, 2, 6)
@@ -412,6 +448,7 @@ watch(
     setupConfig.startingGold = clamp(setupConfig.startingGold, 0, Number.MAX_SAFE_INTEGER)
     setupConfig.startingFame = clamp(setupConfig.startingFame, 0, Number.MAX_SAFE_INTEGER)
     setupConfig.startingBrawl = clamp(setupConfig.startingBrawl, 0, Number.MAX_SAFE_INTEGER)
+    setupConfig.chartScaleMax = clamp(setupConfig.chartScaleMax, 1, Number.MAX_SAFE_INTEGER)
   },
   { immediate: true },
 )
@@ -421,15 +458,15 @@ watch(
   <div class="app-shell">
     <header class="masthead">
       <div>
-        <p class="eyebrow">Dwarfest Companion</p>
-        <h1>Track the tavern, not the arithmetic.</h1>
-        <p class="lede">Track rounds, phases, player stats, beer throws, and checkpoints — fully offline or with live multiplayer sync.</p>
+        <p class="eyebrow">{{ t('app.title') }}</p>
+        <h1>{{ t('app.hero') }}</h1>
+        <p class="lede">{{ t('app.lede') }}</p>
       </div>
 
       <div class="masthead__badges">
-        <span class="badge">Works offline</span>
-        <button v-if="installPromptEvent" class="badge badge--install" type="button" @click="promptInstall">Add to home screen</button>
-        <span class="badge badge--accent">{{ session.config.mode === 'multiplayer' ? 'Multiplayer' : 'Pass-around' }}</span>
+        <span class="badge">{{ t('app.badge.offline') }}</span>
+        <button v-if="installPromptEvent" class="badge badge--install" type="button" @click="promptInstall">{{ t('app.badge.install') }}</button>
+        <span class="badge badge--accent">{{ session.config.mode === 'multiplayer' ? t('app.mode.multiplayer') : t('app.mode.passAround') }}</span>
       </div>
 
       <div v-if="loadWarnings.length" class="warning-list">
@@ -437,7 +474,7 @@ watch(
       </div>
 
       <div v-if="session.config.mode === 'multiplayer' && !supabaseConfigured" class="warning-list">
-        <p class="hint hint--error">Multiplayer requires Supabase credentials. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment (Vercel project settings or local .env), then redeploy.</p>
+        <p class="hint hint--error">{{ t('app.warning.supabase') }}</p>
       </div>
     </header>
 
@@ -454,9 +491,11 @@ watch(
         :setup-names="setupNames"
         :setup-error="setupError"
         :has-template="Boolean(template)"
+        :locale="locale"
         :multiplayer-role="multiplayerSetupRole"
         :room-code-draft="roomCodeDraft"
         @set-mode="setMode"
+        @set-locale="setAppLocale"
         @set-multiplayer-role="setMultiplayerRole"
         @set-room-code-draft="setRoomCodeDraft"
         @apply-template="applyTemplateToSetup"
@@ -469,25 +508,25 @@ watch(
     <main v-else-if="session.status === 'active'" class="layout layout--play">
       <section class="panel status-grid">
         <article>
-          <p class="eyebrow">Mode</p>
-          <strong>{{ session.config.mode === 'multiplayer' ? 'Multiplayer prototype' : 'Pass-around' }}</strong>
+          <p class="eyebrow">{{ t('status.mode') }}</p>
+          <strong>{{ session.config.mode === 'multiplayer' ? t('status.multiplayerPrototype') : t('app.mode.passAround') }}</strong>
           <p class="hint" v-if="session.config.mode === 'multiplayer'">Room {{ session.roomCode }}</p>
           <p class="hint" :class="syncStatusClass" v-if="multiplayerStatusLine">{{ multiplayerStatusLine }}</p>
           <button v-if="canRetryParticipantSync" class="button button--ghost" type="button" :disabled="isRetryingSync" @click="retrySyncFromStatus">
-            {{ isRetryingSync ? 'Retrying...' : 'Retry sync' }}
+            {{ isRetryingSync ? t('status.retrying') : t('status.retrySync') }}
           </button>
           <button class="button button--ghost" type="button" @click="confirmExitGame">{{ exitGameLabel }}</button>
         </article>
         <article>
-          <p class="eyebrow">Round</p>
+          <p class="eyebrow">{{ t('status.round') }}</p>
           <strong>{{ session.currentRound }} / {{ session.config.rounds }}</strong>
         </article>
         <article>
-          <p class="eyebrow">Phase</p>
+          <p class="eyebrow">{{ t('status.phase') }}</p>
           <strong>{{ labelForPhase(session.currentPhase) }}</strong>
         </article>
         <article>
-          <p class="eyebrow">Current player</p>
+          <p class="eyebrow">{{ t('status.currentPlayer') }}</p>
           <strong>{{ currentPlayer?.name }}</strong>
         </article>
       </section>
@@ -507,7 +546,19 @@ watch(
       </section>
 
       <section class="play-grid" v-if="currentPlayer">
-        <PlayerSheet :player="currentPlayer" :total-nuggets="totalNuggetValue(currentPlayer)" :brawl-threshold="brawlThreshold" :read-only="isParticipantView" />
+        <PlayerSheet
+          :player="currentPlayer"
+          :total-nuggets="totalNuggetValue(currentPlayer)"
+          :brawl-threshold="brawlThreshold"
+          :read-only="isParticipantView"
+          :table-max="TABLE_MAX"
+          :barrel-max="BARREL_MAX"
+          :dancer-max="DANCER_MAX"
+          :chart-scale-max="session.config.chartScaleMax"
+          :card-mode="session.config.cardMode"
+          @purchase-asset="purchaseCurrentPlayerAsset"
+          @sell-asset="sellCurrentPlayerAsset"
+        />
 
         <aside class="stack">
           <BeerThrowPanel
@@ -536,7 +587,7 @@ watch(
       </section>
 
       <section class="play-grid play-grid--secondary">
-        <ScoreboardPanel :players="scoreBoard" />
+        <ScoreboardPanel :players="scoreBoard" :chart-scale-max="session.config.chartScaleMax" :card-mode="session.config.cardMode" />
         <HistoryPanel :history="session.history" :can-restore="!isParticipantView" @restore="restoreSnapshot" />
       </section>
     </main>

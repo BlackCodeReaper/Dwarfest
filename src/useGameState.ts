@@ -1,8 +1,9 @@
 import { ref, watch } from 'vue'
 import { phases, type GameConfig, type GameMode, type GameSession, type MultiplayerRole, type MultiplayerSyncState, type PlayerState, type SavedTemplate, type SessionData, type SessionSnapshot } from './types'
 import { advanceTurnPointer } from './services/gameFlow'
-import { totalNuggetValue, applyAssetPurchase } from './services/gameUtils'
+import { totalNuggetValue, applyAssetPurchase, applyAssetSale } from './services/gameUtils'
 import { createRealtimeSync, type RealtimeSyncHandle } from './services/realtimeSync'
+import { t } from './i18n'
 
 export { totalNuggetValue }
 
@@ -38,13 +39,34 @@ export function createDefaultConfig(mode: GameMode = 'pass-around'): GameConfig 
     mode,
     rounds: 5,
     beerMode: 'physical',
+    cardMode: 'physical',
     epicVariant: false,
     playerCount: 4,
+    chartScaleMax: 20,
     startingCopper: 10,
     startingSilver: 0,
     startingGold: 0,
     startingFame: 1,
     startingBrawl: 1,
+  }
+}
+
+function normalizeConfig(config: Partial<GameConfig>): GameConfig {
+  const base = createDefaultConfig(config.mode === 'multiplayer' ? 'multiplayer' : 'pass-around')
+
+  return {
+    ...base,
+    ...config,
+    cardMode: config.cardMode === 'in-app-generated' ? 'in-app-generated' : 'physical',
+    chartScaleMax: Number.isFinite(config.chartScaleMax) ? Math.max(1, Math.trunc(config.chartScaleMax as number)) : base.chartScaleMax,
+  }
+}
+
+function normalizePlayer(player: PlayerState): PlayerState {
+  return {
+    ...player,
+    cardPayout: Number.isFinite(player.cardPayout) ? Math.max(0, Math.trunc(player.cardPayout)) : 0,
+    cards: Array.isArray(player.cards) ? player.cards : [],
   }
 }
 
@@ -78,6 +100,8 @@ function createPlayer(name: string, config: GameConfig): PlayerState {
     successfulThrows: 0,
     failedThrows: 0,
     notes: '',
+    cardPayout: 0,
+    cards: [],
   }
 }
 
@@ -117,9 +141,14 @@ function loadSession() {
   }
 
   try {
-    return JSON.parse(raw) as GameSession
+    const parsed = JSON.parse(raw) as GameSession
+    return {
+      ...parsed,
+      config: normalizeConfig(parsed.config),
+      players: Array.isArray(parsed.players) ? parsed.players.map((player) => normalizePlayer(player as PlayerState)) : [],
+    }
   } catch {
-    loadWarnings.value = [...loadWarnings.value, 'Saved game data was corrupted and has been reset.']
+    loadWarnings.value = [...loadWarnings.value, t('warning.sessionCorrupted')]
     return createSetupSession()
   }
 }
@@ -132,9 +161,13 @@ function loadTemplate() {
   }
 
   try {
-    return JSON.parse(raw) as SavedTemplate
+    const parsed = JSON.parse(raw) as SavedTemplate
+    return {
+      ...parsed,
+      config: normalizeConfig(parsed.config),
+    }
   } catch {
-    loadWarnings.value = [...loadWarnings.value, 'Saved template data was corrupted and has been removed.']
+    loadWarnings.value = [...loadWarnings.value, t('warning.templateCorrupted')]
     window.localStorage.removeItem(TEMPLATE_STORAGE_KEY)
     return null
   }
@@ -200,7 +233,12 @@ function enqueuePendingSync(nextSession: GameSession) {
 function applyRemoteSession(remoteSession: GameSession) {
   applyingRemoteUpdate = true
   skipNextPublish = true
-  session.value = cloneData(remoteSession)
+  const cloned = cloneData(remoteSession)
+  session.value = {
+    ...cloned,
+    config: normalizeConfig(cloned.config),
+    players: cloned.players.map((player) => normalizePlayer(player)),
+  }
   applyingRemoteUpdate = false
 }
 
@@ -370,6 +408,19 @@ function purchaseAsset(playerId: string, asset: import('./types').PurchasableAss
   return true
 }
 
+function sellAsset(playerId: string, asset: import('./types').PurchasableAsset) {
+  if (!canMutateGameplay()) return false
+  const player = session.value.players.find((p) => p.id === playerId)
+  if (!player) return false
+
+  const delta = applyAssetSale(player, asset)
+  if (!delta) return false
+
+  Object.assign(player, delta)
+  session.value.updatedAt = new Date().toISOString()
+  return true
+}
+
 function createSnapshot(label: string): SessionSnapshot {
   const payload: SessionData = {
     config: cloneData(session.value.config),
@@ -402,16 +453,17 @@ function canMutateGameplay() {
 }
 
 function startGame(config: GameConfig, playerNames: string[], options?: { roomCode?: string; role?: MultiplayerRole }) {
+  const normalizedConfig = normalizeConfig(config)
   const filteredNames = playerNames
     .map((name) => name.trim())
     .filter(Boolean)
-    .slice(0, config.playerCount)
+    .slice(0, normalizedConfig.playerCount)
 
-  while (filteredNames.length < config.playerCount) {
+  while (filteredNames.length < normalizedConfig.playerCount) {
     filteredNames.push(`Player ${filteredNames.length + 1}`)
   }
 
-  if (config.mode === 'multiplayer') {
+  if (normalizedConfig.mode === 'multiplayer') {
     multiplayerRole.value = options?.role ?? 'host'
   } else {
     multiplayerRole.value = 'host'
@@ -422,15 +474,15 @@ function startGame(config: GameConfig, playerNames: string[], options?: { roomCo
     status: 'active',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    config,
-    players: filteredNames.map((name) => createPlayer(name, config)),
+    config: normalizedConfig,
+    players: filteredNames.map((name) => createPlayer(name, normalizedConfig)),
     currentRound: 1,
     currentPhase: phases[0],
     currentPlayerIndex: 0,
     roomCode:
-      config.mode === 'multiplayer' && options?.roomCode
+      normalizedConfig.mode === 'multiplayer' && options?.roomCode
         ? normalizeRoomCode(options.roomCode)
-        : createRoomCode(config.mode),
+        : createRoomCode(normalizedConfig.mode),
     history: [],
   }
 
@@ -505,12 +557,13 @@ function showToast(message: string, durationMs = 2800) {
 }
 
 function saveTemplate(config: GameConfig, playerNames: string[]) {
+  const normalizedConfig = normalizeConfig(config)
   template.value = {
-    config,
-    playerNames: playerNames.slice(0, config.playerCount),
+    config: normalizedConfig,
+    playerNames: playerNames.slice(0, normalizedConfig.playerCount),
   }
 
-  showToast('Template saved.')
+  showToast(t('toast.templateSaved'))
 }
 
 function quickStartFromTemplate() {
@@ -534,7 +587,7 @@ function exportGame() {
   link.download = `dwarfest-${session.value.id}.json`
   link.click()
   window.URL.revokeObjectURL(url)
-  showToast('Game log exported.')
+  showToast(t('toast.exported'))
 }
 
 function leaveMultiplayerGame() {
@@ -553,7 +606,7 @@ function leaveMultiplayerGame() {
   syncStatus.value = { state: 'idle', detail: '' }
   multiplayerRole.value = 'host'
   session.value = createSetupSession()
-  showToast('Left multiplayer room.')
+  showToast(t('toast.leftRoom'))
 }
 
 function resetSession() {
@@ -613,5 +666,6 @@ export function useGameState() {
     resetSession,
     leaveMultiplayerGame,
     retryParticipantSync,
+    sellAsset,
   }
 }
